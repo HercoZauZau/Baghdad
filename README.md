@@ -2,6 +2,22 @@
 
 Assistente de Inteligência Artificial interactivo, combinando um agente de IA, um avatar e hardware dedicado baseado em Raspberry Pi e outras componentes de hardware.
 
+## 🎯 Objectivo
+
+Construir um assistente de IA que possa funcionar localmente e evoluir gradualmente para um dispositivo físico independente.
+
+A versão final deverá ser capaz de:
+
+* conversar naturalmente com o utilizador;
+* receber comandos por voz;
+* responder através de voz;
+* manter contexto e memória;
+* possuir uma personalidade configurável;
+* apresentar um avatar animado;
+* utilizar ferramentas e serviços externos;
+* funcionar num dispositivo dedicado;
+* minimizar a dependência de serviços cloud.
+
 ---
 
 ## 🧩 Componentes principais
@@ -51,28 +67,55 @@ Componentes previstos:
 
 ---
 
-## 🗺️ Roadmap
+## 🏛️ Arquitectura técnica actual
 
-### Fase I — Agente de IA
+A primeira versão da Baghdad utiliza três camadas principais:
 
-* [ ] **1.1. Chatbot** 🚧
-* [ ] **1.2. Avatar**
-* [ ] **1.3. Cenário**
-* [ ] **1.4. Memória**
-
-### Fase II — Infraestrutura
-
-* [ ] **APIs e serviços**
-* [ ] **Armazenamento**
-* [ ] **Comunicação entre módulos**
-* [ ] **Deployment e monitorização**
-
-### Fase III — Hardware
-
-* [ ] **Raspberry Pi**
-* [ ] **Mini tela**
-* [ ] **Áudio**
-* [ ] **Integração física**
-* [ ] **Protótipo final**
+<img src="assets/img/baghdad arc v1.png" />
 
 ---
+
+### 🐳 Docker
+
+O Docker é utilizado para executar o Ollama num ambiente isolado e reproduzível.
+
+Principais vantagens:
+
+* instalação mais limpa;
+* isolamento do sistema operativo;
+* facilidade de migração para outras máquinas;
+* possibilidade de adicionar novos serviços futuramente.
+
+---
+
+### 🦙 Ollama
+
+O Ollama funciona como o **servidor de inferência local** do projecto.
+
+É responsável por:
+
+* descarregar e armazenar modelos;
+* carregar modelos para a memória;
+* executar inferência;
+* disponibilizar uma API HTTP local;
+
+---
+
+### 🤖 Gemma 3 4B
+
+O primeiro modelo seleccionado para o projecto é:
+
+```text
+gemma3:4b
+```
+
+O Gemma é uma família de modelos desenvolvida pela Google.
+
+A versão **4B** foi escolhida por proporcionar um equilíbrio adequado entre:
+
+* qualidade de conversação;
+* suporte multilingue;
+* tamanho;
+* consumo de RAM;
+* desempenho em CPU;
+* capacidade da máquina utilizada no desenvolvimento.
