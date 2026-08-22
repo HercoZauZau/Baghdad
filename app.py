@@ -1,5 +1,14 @@
 import ollama
 
+from database import (
+    criar_base_dados,
+    guardar_mensagem,
+    carregar_historico
+)
+
+
+criar_base_dados()
+
 messages = [
     {
         "role": "system",
@@ -12,16 +21,23 @@ messages = [
     }
 ]
 
+messages.extend(carregar_historico())
+
+
 while True:
     pergunta = input("Tu: ")
 
     if pergunta.lower() in ["sair", "exit", "quit"]:
         break
 
-    messages.append({
+    mensagem_utilizador = {
         "role": "user",
         "content": pergunta
-    })
+    }
+
+    messages.append(mensagem_utilizador)
+
+    guardar_mensagem("user", pergunta)
 
     response = ollama.chat(
         model="gemma3:4b",
@@ -30,9 +46,13 @@ while True:
 
     resposta = response["message"]["content"]
 
-    messages.append({
+    mensagem_assistente = {
         "role": "assistant",
         "content": resposta
-    })
+    }
+
+    messages.append(mensagem_assistente)
+
+    guardar_mensagem("assistant", resposta)
 
     print("\nAssistente:", resposta, "\n")
