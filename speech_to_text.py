@@ -8,7 +8,6 @@ from faster_whisper import WhisperModel
 
 SAMPLE_RATE = 16000
 DURATION = 5
-
 MODEL_SIZE = "small"
 
 
@@ -65,10 +64,10 @@ def transcrever_audio(caminho):
         for segment in segments
     )
 
-    return texto
+    return texto.strip()
 
 
-def main():
+def ouvir():
     audio = gravar_audio()
 
     caminho = guardar_audio_temporario(
@@ -80,11 +79,21 @@ def main():
             caminho
         )
 
-        print("\nTranscrição:")
-        print(texto)
+        return texto
 
     finally:
-        os.remove(caminho)
+        if os.path.exists(caminho):
+            os.remove(caminho)
+
+
+def main():
+    texto = ouvir()
+
+    if texto:
+        print("\nTranscrição:")
+        print(texto)
+    else:
+        print("\nNão foi possível reconhecer nenhuma fala.")
 
 
 if __name__ == "__main__":
