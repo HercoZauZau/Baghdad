@@ -1,14 +1,27 @@
 import os
+import queue
 import tempfile
 
+import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write
 from faster_whisper import WhisperModel
 
 
 SAMPLE_RATE = 16000
-DURATION = 5
+CHANNELS = 1
+
 MODEL_SIZE = "small"
+
+# Sensibilidade do microfone.
+# Quanto menor, mais sensível.
+VOICE_THRESHOLD = 500
+
+# Tempo de silêncio necessário para terminar.
+SILENCE_SECONDS = 1.2
+
+# Tempo máximo permitido para uma fala.
+MAX_DURATION = 20
 
 
 print("A carregar modelo Whisper...")
@@ -20,17 +33,79 @@ model = WhisperModel(
 )
 
 
-def gravar_audio(duracao=DURATION):
-    print("\nA ouvir...")
+def ouvir_audio():
+    fila_audio = queue.Queue()
 
-    audio = sd.rec(
-        int(duracao * SAMPLE_RATE),
-        samplerate=SAMPLE_RATE,
-        channels=1,
-        dtype="int16"
+    blocos = []
+
+    voz_detectada = False
+
+    blocos_silencio = 0
+
+    block_duration = 0.1
+
+    blocksize = int(
+        SAMPLE_RATE * block_duration
     )
 
-    sd.wait()
+    max_blocos = int(
+        MAX_DURATION / block_duration
+    )
+
+    silencio_max_blocos = int(
+        SILENCE_SECONDS / block_duration
+    )
+
+    def callback(indata, frames, time, status):
+        if status:
+            print(status)
+
+        fila_audio.put(
+            indata.copy()
+        )
+
+    print("\nA ouvir...")
+
+    with sd.InputStream(
+        samplerate=SAMPLE_RATE,
+        channels=CHANNELS,
+        dtype="int16",
+        blocksize=blocksize,
+        callback=callback
+    ):
+
+        for _ in range(max_blocos):
+            bloco = fila_audio.get()
+
+            volume = np.abs(
+                bloco
+            ).mean()
+
+            if volume > VOICE_THRESHOLD:
+                voz_detectada = True
+                blocos_silencio = 0
+
+            elif voz_detectada:
+                blocos_silencio += 1
+
+            if voz_detectada:
+                blocos.append(
+                    bloco
+                )
+
+            if (
+                voz_detectada
+                and blocos_silencio >= silencio_max_blocos
+            ):
+                break
+
+    if not blocos:
+        return None
+
+    audio = np.concatenate(
+        blocos,
+        axis=0
+    )
 
     return audio
 
@@ -42,6 +117,7 @@ def guardar_audio_temporario(audio):
     )
 
     caminho = ficheiro.name
+
     ficheiro.close()
 
     write(
@@ -56,7 +132,8 @@ def guardar_audio_temporario(audio):
 def transcrever_audio(caminho):
     segments, info = model.transcribe(
         caminho,
-        language="pt"
+        language="pt",
+        vad_filter=True
     )
 
     texto = " ".join(
@@ -68,7 +145,10 @@ def transcrever_audio(caminho):
 
 
 def ouvir():
-    audio = gravar_audio()
+    audio = ouvir_audio()
+
+    if audio is None:
+        return ""
 
     caminho = guardar_audio_temporario(
         audio
@@ -90,10 +170,18 @@ def main():
     texto = ouvir()
 
     if texto:
-        print("\nTranscrição:")
-        print(texto)
+        print(
+            "\nTranscrição:"
+        )
+
+        print(
+            texto
+        )
+
     else:
-        print("\nNão foi possível reconhecer nenhuma fala.")
+        print(
+            "\nNenhuma fala detectada."
+        )
 
 
 if __name__ == "__main__":
