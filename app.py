@@ -8,6 +8,9 @@ from database import (
     procurar_memorias
 )
 
+from speech_to_text import ouvir
+from text_to_speech import falar
+
 
 MODEL = "gemma3:4b"
 
@@ -100,6 +103,42 @@ def processar_memoria(pergunta):
         pass
 
 
+def escolher_modo():
+    while True:
+        print("\nEscolhe o modo de conversa:")
+        print("[E] Escrever")
+        print("[F] Falar")
+        print("[S] Sair")
+
+        modo = input("> ").strip().lower()
+
+        if modo in ["e", "escrever"]:
+            return "texto"
+
+        if modo in ["f", "falar"]:
+            return "voz"
+
+        if modo in ["s", "sair", "exit", "quit"]:
+            return None
+
+        print("\nOpção inválida.")
+
+
+def obter_pergunta(modo):
+    if modo == "voz":
+        pergunta = ouvir()
+
+        if pergunta:
+            print(
+                "\nTu:",
+                pergunta
+            )
+
+        return pergunta
+
+    return input("\nTu: ").strip()
+
+
 def main():
     criar_base_dados()
 
@@ -119,39 +158,76 @@ def main():
         }
     ]
 
-    # Recupera o histórico persistente
     messages.extend(
         carregar_historico()
     )
 
-    print("Assistente iniciado.")
-    print("Escreve 'sair' para terminar.\n")
+    print("\nBaghdad iniciado.")
+
+    modo = escolher_modo()
+
+    if modo is None:
+        print("\nBaghdad terminado.")
+        return
+
+    print(
+        f"\nModo seleccionado: "
+        f"{'voz' if modo == 'voz' else 'texto'}"
+    )
+
+    if modo == "texto":
+        print("Escreve 'sair' para terminar.")
 
     while True:
-        pergunta = input("Tu: ").strip()
+        pergunta = obter_pergunta(modo)
 
         if not pergunta:
             continue
 
-        if pergunta.lower() in [
-            "sair",
-            "exit",
-            "quit"
-        ]:
-            print("\nAssistente terminado.")
+        # No modo texto podemos sair escrevendo "sair".
+        if (
+            modo == "texto"
+            and pergunta.lower() in [
+                "sair",
+                "exit",
+                "quit"
+            ]
+        ):
             break
 
-        # ---------------------------------
+        # No modo voz, também permitimos dizer "sair".
+        if (
+            modo == "voz"
+            and pergunta.lower() in [
+                "sair",
+                "sair.",
+                "terminar",
+                "terminar."
+            ]
+        ):
+            break
+
+        # --------------------------------
         # 1. Procurar memórias relevantes
-        # ---------------------------------
+        # --------------------------------
 
-        texto_memorias = preparar_memorias(
-            pergunta
-        )
+        try:
+            texto_memorias = preparar_memorias(
+                pergunta
+            )
 
-        # ---------------------------------
-        # 2. Criar mensagem para o modelo
-        # ---------------------------------
+        except Exception as erro:
+            print(
+                f"[Aviso: erro ao procurar memórias: {erro}]"
+            )
+
+            texto_memorias = (
+                "Nenhuma memória disponível."
+            )
+
+        # --------------------------------
+        # 2. Preparar contexto para Gemma
+        # --------------------------------
 
         mensagem_para_modelo = f"""
 Memórias potencialmente relevantes sobre o utilizador:
@@ -170,18 +246,18 @@ Mensagem actual do utilizador:
             }
         )
 
-        # ---------------------------------
+        # --------------------------------
         # 3. Guardar mensagem real
-        # ---------------------------------
+        # --------------------------------
 
         guardar_mensagem(
             "user",
             pergunta
         )
 
-        # ---------------------------------
-        # 4. Enviar conversa para Gemma
-        # ---------------------------------
+        # --------------------------------
+        # 4. Gerar resposta
+        # --------------------------------
 
         try:
             response = ollama.chat(
@@ -198,19 +274,16 @@ Mensagem actual do utilizador:
         except Exception as erro:
             print(
                 "\nErro ao comunicar com Ollama:",
-                erro,
-                "\n"
+                erro
             )
 
-            # Remove a mensagem adicionada ao contexto,
-            # porque não houve resposta válida.
             messages.pop()
 
             continue
 
-        # ---------------------------------
-        # 5. Guardar resposta no contexto
-        # ---------------------------------
+        # --------------------------------
+        # 5. Guardar resposta
+        # --------------------------------
 
         messages.append(
             {
@@ -224,9 +297,9 @@ Mensagem actual do utilizador:
             resposta
         )
 
-        # ---------------------------------
-        # 6. Verificar se há algo a memorizar
-        # ---------------------------------
+        # --------------------------------
+        # 6. Processar possível memória
+        # --------------------------------
 
         try:
             processar_memoria(
@@ -234,21 +307,23 @@ Mensagem actual do utilizador:
             )
 
         except Exception as erro:
-            # Uma falha na memória não deve
-            # interromper a conversa.
             print(
                 f"[Aviso: memória não processada: {erro}]"
             )
 
-        # ---------------------------------
+        # --------------------------------
         # 7. Mostrar resposta
-        # ---------------------------------
+        # --------------------------------
 
         print(
-            "\nAssistente:",
-            resposta,
-            "\n"
+            "\nBaghdad:",
+            resposta
         )
+
+        if modo == "voz":
+            falar(resposta)
+
+    print("\nBaghdad terminado.")
 
 
 if __name__ == "__main__":
