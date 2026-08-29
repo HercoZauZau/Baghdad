@@ -1,233 +1,242 @@
+<img src="assets/img/cover.png" />
+
 # Baghdad
 
-Assistente de Inteligência Artificial interactivo, combinando um agente de IA, um avatar e hardware dedicado baseado em Raspberry Pi e outras componentes de hardware.
+**Assistente Virtual Local**
+
+Baghdad é um projecto de assistente pessoal de Inteligência Artificial desenvolvido para funcionar de forma local, combinando **IA conversacional, memória, voz, avatar e hardware dedicado**.
+
+O objectivo final é transformar o assistente num dispositivo físico independente baseado em Raspberry Pi.
+
+---
 
 ## 🎯 Objectivo
 
-Construir um assistente de IA que possa funcionar localmente e evoluir gradualmente para um dispositivo físico independente.
-
 A versão final deverá ser capaz de:
 
-* conversar naturalmente com o utilizador;
-* receber comandos por voz;
-* responder através de voz;
-* manter contexto e memória;
-* possuir uma personalidade configurável;
-* apresentar um avatar animado;
-* utilizar ferramentas e serviços externos;
-* funcionar num dispositivo dedicado;
-* minimizar a dependência de serviços cloud.
+* [x] conversar naturalmente com o utilizador;
+* [x] manter contexto da conversa;
+* [x] possuir memória persistente;
+* [x] recuperar memórias através de pesquisa semântica;
+* [x] receber mensagens por texto;
+* [x] receber comandos por voz;
+* [x] responder através de voz;
+* [ ] possuir personalidade avançada configurável;
+* [ ] apresentar um avatar animado;
+* [ ] utilizar ferramentas e serviços externos;
+* [ ] funcionar num dispositivo físico dedicado;
+* [ ] minimizar ao máximo a dependência de serviços cloud.
 
 ---
 
 ## 🧩 Componentes principais
 
-O projecto está dividido em três componentes:
+O projecto está dividido em três grandes componentes.
 
 ### 1. 🧠 Agente de IA
 
-Responsável pela inteligência e comportamento do sistema.
+Responsável pela inteligência e comportamento da Baghdad.
 
 Inclui:
 
-* processamento das mensagens do utilizador;
-* geração de respostas;
-* contexto da conversa;
+* modelo de linguagem;
+* gestão da conversa;
 * memória;
-* personalidade e comportamento;
+* processamento de voz;
+* personalidade;
+* ferramentas;
 * integração com o avatar.
 
 ### 2. 🏗️ Infraestrutura
 
-Responsável pelos serviços e pela arquitectura necessária para executar o agente.
+Responsável pelos serviços necessários para executar o agente.
 
-Poderá incluir:
+Inclui:
 
-* APIs;
-* serviços locais e/ou cloud;
+* APIs locais;
 * modelos de IA;
-* armazenamento da memória;
-* comunicação entre os diferentes módulos;
-* **gestão de configurações e segurança**;
-* monitorização do sistema.
+* base de dados;
+* Docker;
+* comunicação entre módulos;
+* configurações e segurança;
+* monitorização.
 
 ### 3. 🖥️ Hardware
 
-Responsável pela materialização física do assistente.
+Responsável pela futura implementação física do assistente.
 
 Componentes previstos:
 
 * Raspberry Pi;
-* mini tela/display;
+* mini display;
 * microfone;
 * altifalante;
 * alimentação;
 * estrutura física;
-* possíveis sensores e periféricos adicionais.
+* sensores e periféricos adicionais.
 
 ---
 
-## 🏛️ Arquitectura técnica actual
+## 🏛️ Arquitectura técnica
 
-A primeira versão da Baghdad utiliza três camadas principais:
-
-<img src="assets/img/baghdad arc v1.1.png" />
+<img src="assets/img/baghdad arc v1.2.png" />
 
 ---
 
-### 🐳 Docker
+## 🐳 Docker + Ollama
 
-O Docker é utilizado para executar o Ollama num ambiente isolado e reproduzível.
+O **Ollama** funciona como servidor de inferência local dos modelos utilizados pela Baghdad.
 
-Principais vantagens:
+Actualmente é executado através de Docker, permitindo:
 
+* isolamento do ambiente;
 * instalação mais limpa;
-* isolamento do sistema operativo;
-* facilidade de migração para outras máquinas;
-* possibilidade de adicionar novos serviços futuramente.
+* maior facilidade de migração;
+* gestão local dos modelos;
+* disponibilização de uma API HTTP para a aplicação Python.
 
 ---
 
-### 🦙 Ollama
+## 🦙 Gemma 3 4B
 
-O Ollama funciona como o **servidor de inferência local** do projecto.
+O modelo de linguagem actualmente utilizado é:
 
-É responsável por:
+```text
+Gemma 3 4B
+```
 
-* descarregar e armazenar modelos;
-* carregar modelos para a memória;
-* executar inferência;
-* disponibilizar uma API HTTP local;
-
----
-
-### 🤖 Gemma 3 4B
-
-O Gemma é uma família de modelos desenvolvida pela Google.
-
-A versão **4B** foi escolhida por proporcionar um equilíbrio adequado entre:
+Foi escolhido pelo equilíbrio entre:
 
 * qualidade de conversação;
 * suporte multilingue;
 * tamanho;
-* consumo de RAM;
+* utilização de RAM;
 * desempenho em CPU;
-* capacidade da máquina utilizada no desenvolvimento.
+* capacidade do hardware actual de desenvolvimento.
+
+O modelo é executado localmente através do Ollama.
 
 ---
 
-### 🐍 Aplicação Python
+## 🐍 Aplicação Python
 
-A lógica principal do assistente está implementada em Python.
+A aplicação Python funciona como o **orquestrador principal** da Baghdad.
 
-A aplicação é responsável por coordenar os diferentes componentes do sistema.
+Actualmente é responsável por:
 
-Actualmente inclui:
+* receber texto ou voz;
+* gerir o histórico da conversa;
+* consultar memórias;
+* construir o contexto enviado ao LLM;
+* comunicar com o Ollama;
+* guardar mensagens;
+* identificar informações que devem ser memorizadas.
 
-* interface de terminal;
-* gestão do histórico da conversa;
-* extracção de memórias;
-* persistência das mensagens.
+A interface actual funciona através do terminal.
+
+---
+
+## 🎙️ Reconhecimento de voz
+
+Para converter voz em texto é utilizado:
+
+```text
+Faster-Whisper
+```
+
+
+O áudio captado pelo microfone é transcrito localmente e enviado para o mesmo fluxo utilizado pelas mensagens escritas.
+
+```text
+Microfone
+    │
+    ▼
+Faster-Whisper
+    │
+    ▼
+Texto
+    │
+    ▼
+Baghdad
+```
 
 ---
 
 ## 🧠 Memória
 
-A Baghdad possui actualmente dois níveis principais de memória.
+A Baghdad possui três mecanismos principais de memória.
 
-#### Memória de contexto
+### Memória de contexto
 
-Mantém a continuidade da conversa durante a execução do chatbot.
+Mantém as mensagens recentes disponíveis durante a conversa actual.
 
-#### Memória persistente
+### Histórico persistente
 
-As mensagens são armazenadas numa base de dados SQLite.
+As mensagens são armazenadas numa base de dados SQLite, permitindo manter o histórico mesmo depois de a aplicação ser encerrada.
 
-Isso permite que o histórico continue disponível mesmo depois de a aplicação ser encerrada.
+### Memória de longo prazo
 
-#### Memória de longo prazo
-
-Além do histórico completo, o sistema consegue extrair informações consideradas úteis para conversas futuras.
+Informações relevantes podem ser extraídas das conversas e guardadas separadamente.
 
 Exemplo:
 
 ```text
-Mensagem: O meu carro preferido é Toyota Land Cruiser.
-```
+Mensagem:
+O meu carro preferido é Toyota Land Cruiser.
 
-Pode gerar a memória:
-
-```text
+Memória:
 preferencia | O utilizador prefere Toyota Land Cruiser.
 ```
 
-As memórias podem ser classificadas em categorias como:
+As memórias podem ser classificadas como:
 
-* `preferencia`;
-* `facto`;
-* `objectivo`;
-* `projecto`;
-* `outro`.
-
-Cada memória possui também um embedding que permite efectuar pesquisas semânticas.
+```text
+preferencia
+facto
+objectivo
+projecto
+outro
+```
 
 ---
 
-## 🔎 Embeddings e recuperação semântica
+## 🔎 Pesquisa semântica
 
-Para a geração de embeddings é utilizado:
+Para geração de embeddings é utilizado:
 
 ```text
 nomic-embed-text
 ```
 
-Ao contrário do Gemma, este modelo não é utilizado para conversar.
+O modelo transforma textos em representações vectoriais.
 
-A sua função é transformar texto em vectores numéricos que representam aproximadamente o seu significado.
+Quando uma nova mensagem é recebida, a Baghdad:
 
-Exemplo:
+1. gera o embedding da mensagem;
+2. compara-o com as memórias existentes;
+3. utiliza similaridade de cosseno;
+4. recupera as memórias mais relevantes;
+5. adiciona essas memórias ao contexto do LLM.
 
-```text
-"O meu carro preferido é o Land Cruiser."
-```
-
-é convertido num vector semelhante a:
-
-```text
-[0.021, -0.144, 0.532, ...]
-```
-
-Quando o utilizador faz uma nova pergunta, também é criado um embedding.
-
-Os vectores são então comparados através de **similaridade de cosseno**.
-
-Isto permite que o assistente encontre relações semânticas mesmo quando as palavras utilizadas são diferentes.
-
-Por exemplo:
+Isto permite encontrar relações mesmo quando são utilizadas palavras diferentes.
 
 ```text
-Memória: O utilizador prefere Toyota Land Cruiser.
+Memória:
+O utilizador prefere Toyota Land Cruiser.
 
-Pergunta: Qual é o meu jipe favorito?
+Pergunta:
+Qual é o meu jipe favorito?
 ```
 
-A pesquisa tradicional por palavras poderia falhar.
-
-A pesquisa semântica consegue identificar que as duas frases possuem significados relacionados.
+A pesquisa semântica consegue relacionar as duas informações.
 
 ---
 
 ## 🗄️ SQLite
 
-O SQLite é utilizado para persistência local.
+Actualmente a base de dados possui duas estruturas principais.
 
-Actualmente existem duas estruturas principais:
-
-### Tabela `mensagens`
-
-Responsável pelo histórico da conversa.
-
-Campos principais:
+### `mensagens`
 
 ```text
 id
@@ -236,11 +245,7 @@ content
 created_at
 ```
 
-### Tabela `memorias`
-
-Responsável pela memória de longo prazo.
-
-Campos principais:
+### `memorias`
 
 ```text
 id
@@ -251,42 +256,41 @@ created_at
 updated_at
 ```
 
-A memória inclui mecanismos básicos para:
+O sistema possui mecanismos básicos para:
 
 * detectar memórias semelhantes;
 * reduzir duplicações;
-* actualizar informações existentes;
-* recuperar apenas memórias com relevância suficiente.
+* actualizar memórias;
+* aplicar um nível mínimo de relevância durante a recuperação.
 
 ---
 
-## 🔄 Fluxo actual de uma mensagem
-
-Quando o utilizador envia uma mensagem, o sistema executa aproximadamente o seguinte fluxo:
+## 🔄 Fluxo actual
 
 ```text
-1. Utilizador envia mensagem
-            │
-            ▼
-2. Python gera embedding da pergunta
-            │
-            ▼
-3. Memórias são pesquisadas por similaridade
-            │
-            ▼
-4. Memórias relevantes são adicionadas ao contexto
-            │
-            ▼
-5. Gemma gera a resposta
-            │
-            ▼
-6. Pergunta e resposta são armazenadas no SQLite
-            │
-            ▼
-7. Gemma analisa se a mensagem contém algo a memorizar
-            │
-            ▼
-8. Se necessário:
-      ├── cria nova memória
-      └── ou actualiza memória semelhante
+1. Utilizador escreve ou fala
+              │
+              ▼
+2. Voz é convertida em texto, se necessário
+              │
+              ▼
+3. É criado o embedding da mensagem
+              │
+              ▼
+4. Memórias relevantes são recuperadas
+              │
+              ▼
+5. Contexto é enviado ao Gemma
+              │
+              ▼
+6. Gemma gera a resposta
+              │
+              ▼
+7. Conversa é armazenada no SQLite
+              │
+              ▼
+8. A mensagem é analisada
+              │
+              ▼
+9. Uma memória pode ser criada ou actualizada
 ```
