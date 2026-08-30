@@ -19,43 +19,60 @@ body {
 
 .app {
   position: relative;
+
   width: 100vw;
   height: 100vh;
+
   overflow: hidden;
+
+  background: #202020;
 }
 
 .scene {
   position: absolute !important;
+
   inset: 0;
+
   width: 100% !important;
   height: 100% !important;
 }
 
+
+/*
+ * CONTROLOS TEMPORÁRIOS
+ */
+
 .controls {
   position: absolute;
+
   left: 50%;
   bottom: 25px;
+
   transform: translateX(-50%);
 
   display: flex;
+
   gap: 10px;
 
   z-index: 10;
 }
 
+
 .controls button {
   padding: 10px 16px;
+
   border: none;
   border-radius: 8px;
-
-  cursor: pointer;
 
   background: white;
   color: #222;
 
   font-size: 14px;
+
+  cursor: pointer;
 }
 
+
 .controls button:hover {
-  background: #ddd;
+  background: #dddddd;
 }
