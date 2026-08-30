@@ -1,26 +1,24 @@
-import { Suspense, useEffect, useState } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import {
+  Suspense,
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  Canvas,
+  useThree,
+} from "@react-three/fiber";
 
 import Avatar from "./Avatar";
 import Room from "./Room";
 
 
-/*
- * CONFIGURAÇÃO DA CÂMARA FIXA
- */
-
 function CameraSetup() {
+
   const { camera } = useThree();
 
-  useEffect(() => {
 
-    /*
-     * POSIÇÃO DA CÂMARA
-     *
-     * X = esquerda / direita
-     * Y = altura
-     * Z = distância
-     */
+  useEffect(() => {
 
     camera.position.set(
       0,
@@ -28,10 +26,6 @@ function CameraSetup() {
       3.5
     );
 
-
-    /*
-     * PONTO PARA ONDE A CÂMARA OLHA
-     */
 
     camera.lookAt(
       0,
@@ -44,6 +38,7 @@ function CameraSetup() {
 
   }, [camera]);
 
+
   return null;
 }
 
@@ -51,14 +46,135 @@ function CameraSetup() {
 
 function App() {
 
-  const [expression, setExpression] =
-    useState("neutral");
+  const [
+    expression,
+    setExpression,
+  ] = useState("neutral");
+
+
+  const [
+    text,
+    setText,
+  ] = useState(
+    "Olá. O meu nome é Baghdad. É um prazer falar contigo."
+  );
+
+
+  const [
+    speech,
+    setSpeech,
+  ] = useState(null);
+
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+
+
+  async function speak() {
+
+    if (!text.trim()) {
+      return;
+    }
+
+
+    setLoading(true);
+
+
+    try {
+
+      const response = await fetch(
+        "http://127.0.0.1:8000/speak",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            text,
+          }),
+        }
+      );
+
+
+      if (!response.ok) {
+
+        const error =
+          await response.json();
+
+        console.error(
+          error
+        );
+
+        throw new Error(
+          "Erro ao gerar fala."
+        );
+
+      }
+
+
+      const data =
+        await response.json();
+
+
+      console.log(
+        "Mouth cues:",
+        data.mouthCues
+      );
+
+
+      setSpeech({
+        audioUrl: data.audio,
+
+        mouthCues:
+          data.mouthCues,
+
+        duration:
+          data.duration,
+
+        /*
+         * Força nova reprodução
+         * mesmo se o texto for igual.
+         */
+        id: Date.now(),
+      });
+
+    }
+
+    catch (error) {
+
+      console.error(
+        error
+      );
+
+
+      alert(
+        "Não foi possível gerar a fala."
+      );
+
+    }
+
+    finally {
+
+      setLoading(false);
+
+    }
+
+  }
+
 
 
   return (
+
     <div className="app">
 
       <Canvas
+
         className="scene"
 
         camera={{
@@ -70,28 +186,29 @@ function App() {
         gl={{
           antialias: true,
         }}
+
       >
 
-        {/* CÂMARA FIXA */}
         <CameraSetup />
 
 
-        {/* LUZ AMBIENTE */}
         <ambientLight
           intensity={0.7}
         />
 
 
-        {/* LUZ PRINCIPAL */}
         <directionalLight
           position={[4, 6, 4]}
           intensity={1.5}
         />
 
 
-        {/* LUZ SECUNDÁRIA */}
         <pointLight
-          position={[-3.2, 2.2, -1.5]}
+          position={[
+            -3.2,
+            2.2,
+            -1.5,
+          ]}
           intensity={4}
           distance={5}
         />
@@ -99,13 +216,12 @@ function App() {
 
         <Suspense fallback={null}>
 
-          {/* COZINHA */}
           <Room />
 
 
-          {/* BAGHDAD */}
           <Avatar
             expression={expression}
+            speech={speech}
           />
 
         </Suspense>
@@ -113,36 +229,95 @@ function App() {
       </Canvas>
 
 
-      {/* CONTROLOS TEMPORÁRIOS */}
+
+      <div className="tts-controls">
+
+        <input
+
+          value={text}
+
+          onChange={(event) =>
+            setText(
+              event.target.value
+            )
+          }
+
+          onKeyDown={(event) => {
+
+            if (
+              event.key === "Enter"
+              &&
+              !loading
+            ) {
+
+              speak();
+
+            }
+
+          }}
+
+          placeholder="Escreve algo para a Baghdad..."
+
+        />
+
+
+        <button
+          onClick={speak}
+          disabled={loading}
+        >
+
+          {
+            loading
+              ? "A gerar..."
+              : "Falar"
+          }
+
+        </button>
+
+      </div>
+
+
+
       <div className="controls">
 
         <button
           onClick={() =>
-            setExpression("neutral")
+            setExpression(
+              "neutral"
+            )
           }
         >
           Neutral
         </button>
 
+
         <button
           onClick={() =>
-            setExpression("happy")
+            setExpression(
+              "happy"
+            )
           }
         >
           Happy
         </button>
 
+
         <button
           onClick={() =>
-            setExpression("surprised")
+            setExpression(
+              "surprised"
+            )
           }
         >
           Surprised
         </button>
 
+
         <button
           onClick={() =>
-            setExpression("thinking")
+            setExpression(
+              "thinking"
+            )
           }
         >
           Thinking
@@ -151,7 +326,9 @@ function App() {
       </div>
 
     </div>
+
   );
+
 }
 
 

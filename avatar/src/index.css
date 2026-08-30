@@ -76,3 +76,53 @@ body {
 .controls button:hover {
   background: #dddddd;
 }
+
+.tts-controls {
+  position: absolute;
+
+  left: 50%;
+  top: 25px;
+
+  transform: translateX(-50%);
+
+  display: flex;
+
+  width: min(700px, 85vw);
+
+  gap: 8px;
+
+  z-index: 20;
+}
+
+
+.tts-controls input {
+  flex: 1;
+
+  padding: 12px 15px;
+
+  border: none;
+  border-radius: 8px;
+
+  font-size: 15px;
+
+  outline: none;
+}
+
+
+.tts-controls button {
+  padding: 12px 20px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: white;
+  color: #222;
+
+  cursor: pointer;
+}
+
+
+.tts-controls button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

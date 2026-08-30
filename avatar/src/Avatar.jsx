@@ -1,5 +1,12 @@
-import { useEffect, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import {
+  useEffect,
+  useRef,
+} from "react";
+
+import {
+  useFrame,
+} from "@react-three/fiber";
+
 import {
   useAnimations,
   useGLTF,
@@ -8,22 +15,86 @@ import {
 import * as THREE from "three";
 
 
+
 /*
- * EXPRESSÕES FACIAIS
+ * =========================================
+ * VISEMES METAPERSON
+ * =========================================
+ */
+
+const VISEMES = [
+  "PP",
+  "FF",
+  "TH",
+  "DD",
+  "kk",
+  "CH",
+  "SS",
+  "nn",
+  "RR",
+  "aa",
+  "E",
+  "ih",
+  "oh",
+  "ou",
+];
+
+
+
+/*
+ * =========================================
+ * RHUBARB → METAPERSON
+ * =========================================
+ */
+
+const RHUBARB_TO_VISEME = {
+
+  A: "PP",
+
+  B: "SS",
+
+  C: "E",
+
+  D: "aa",
+
+  E: "oh",
+
+  F: "ou",
+
+  G: "FF",
+
+  H: "nn",
+
+  X: null,
+
+};
+
+
+
+/*
+ * =========================================
+ * EXPRESSÕES
+ * =========================================
  */
 
 const EXPRESSIONS = {
+
   neutral: {},
 
+
   happy: {
+
     mouthSmileLeft: 0.65,
     mouthSmileRight: 0.65,
 
     cheekSquintLeft: 0.2,
     cheekSquintRight: 0.2,
+
   },
 
+
   surprised: {
+
     browInnerUp: 0.6,
 
     browOuterUpLeft: 0.4,
@@ -33,25 +104,29 @@ const EXPRESSIONS = {
     eyeWideRight: 0.3,
 
     jawOpen: 0.3,
+
     mouthFunnel: 0.15,
+
   },
 
+
   thinking: {
+
     browInnerUp: 0.15,
 
     browDownLeft: 0.2,
 
     mouthPressLeft: 0.15,
     mouthPressRight: 0.15,
+
   },
+
 };
 
 
-/*
- * MORPH TARGETS USADOS PELAS EXPRESSÕES
- */
 
 const EXPRESSION_TARGETS = [
+
   "mouthSmileLeft",
   "mouthSmileRight",
 
@@ -68,21 +143,21 @@ const EXPRESSION_TARGETS = [
   "eyeWideLeft",
   "eyeWideRight",
 
-  "jawOpen",
-  "mouthFunnel",
-
   "mouthPressLeft",
   "mouthPressRight",
+
 ];
 
 
+
 export default function Avatar({
+
   expression = "neutral",
+
+  speech = null,
+
 }) {
 
-  /*
-   * CARREGAR AVATAR
-   */
 
   const {
     scene,
@@ -92,10 +167,6 @@ export default function Avatar({
   );
 
 
-  /*
-   * ANIMAÇÕES CORPORAIS
-   */
-
   const {
     actions,
   } = useAnimations(
@@ -104,35 +175,49 @@ export default function Avatar({
   );
 
 
-  /*
-   * MESHES COM MORPH TARGETS
-   */
-
   const morphMeshes =
     useRef([]);
 
-
-  /*
-   * MESHES QUE CONTROLAM O PISCAR
-   */
 
   const blinkTargets =
     useRef([]);
 
 
+  const visemeMeshes =
+    useRef([]);
+
+
+
   /*
-   * CONTROLO DO PISCAR
+   * ÁUDIO
+   */
+
+  const audioRef =
+    useRef(null);
+
+
+  const mouthCuesRef =
+    useRef([]);
+
+
+
+  /*
+   * BLINK
    */
 
   const nextBlink =
     useRef(2);
 
+
   const blinkStart =
     useRef(null);
 
 
+
   /*
-   * INSPECCIONAR AVATAR
+   * =========================================
+   * ANALISAR AVATAR
+   * =========================================
    */
 
   useEffect(() => {
@@ -141,115 +226,106 @@ export default function Avatar({
 
     blinkTargets.current = [];
 
-
-    scene.traverse((object) => {
-
-      /*
-       * IGNORAR OBJECTOS SEM MORPH TARGETS
-       */
-
-      if (
-        !object.morphTargetDictionary
-      ) {
-        return;
-      }
+    visemeMeshes.current = [];
 
 
-      /*
-       * GUARDAR MESH
-       */
-
-      morphMeshes.current.push(
-        object
-      );
+    scene.traverse(
+      (object) => {
 
 
-      const dictionary =
-        object.morphTargetDictionary;
+        if (
+          !object.morphTargetDictionary
+          ||
+          !object.morphTargetInfluences
+        ) {
+
+          return;
+
+        }
 
 
-      /*
-       * =====================================
-       * PROCURAR VISEMES
-       * =====================================
-       */
-
-      const morphNames =
-        Object.keys(
-          dictionary
+        morphMeshes.current.push(
+          object
         );
 
 
-      const visemes =
-        morphNames.filter(
-          (name) =>
-            name
-              .toLowerCase()
-              .includes("viseme")
-        );
+        const dictionary =
+          object.morphTargetDictionary;
 
 
-      if (
-        visemes.length > 0
-      ) {
 
-        console.log(
-          "VISEMES:",
-          object.name,
-          visemes
-        );
+        /*
+         * VISEMES
+         */
+
+        const encontrados =
+
+          VISEMES.filter(
+
+            (name) =>
+              dictionary[name]
+              !== undefined
+
+          );
+
+
+        if (
+          encontrados.length > 0
+        ) {
+
+          visemeMeshes.current.push(
+            object
+          );
+
+        }
+
+
+
+        /*
+         * BLINK
+         */
+
+        const leftIndex =
+          dictionary.eyeBlinkLeft;
+
+
+        const rightIndex =
+          dictionary.eyeBlinkRight;
+
+
+        if (
+
+          leftIndex !== undefined
+
+          ||
+
+          rightIndex !== undefined
+
+        ) {
+
+          blinkTargets.current.push({
+
+            object,
+
+            leftIndex,
+
+            rightIndex,
+
+          });
+
+        }
 
       }
-
-
-      /*
-       * =====================================
-       * PROCURAR BLINK
-       * =====================================
-       */
-
-      const leftIndex =
-        dictionary.eyeBlinkLeft;
-
-      const rightIndex =
-        dictionary.eyeBlinkRight;
-
-
-      if (
-        leftIndex !== undefined ||
-        rightIndex !== undefined
-      ) {
-
-        blinkTargets.current.push({
-          object,
-          leftIndex,
-          rightIndex,
-        });
-
-      }
-
-    });
-
-
-    /*
-     * INFORMAÇÃO DE DEBUG
-     */
-
-    console.log(
-      "Animações:",
-      animations
     );
 
-  }, [
-    scene,
-    animations,
-  ]);
+  }, [scene]);
+
 
 
   /*
-   * =====================================
-   * TOCAR IDLE
-   * =====================================
+   * =========================================
+   * IDLE
+   * =========================================
    */
 
   useEffect(() => {
@@ -287,236 +363,655 @@ export default function Avatar({
   }, [actions]);
 
 
+
   /*
-   * =====================================
-   * LOOP PRINCIPAL
-   * =====================================
+   * =========================================
+   * NOVA FALA
+   * =========================================
    */
 
-  useFrame(({ clock }) => {
+  useEffect(() => {
 
-    const time =
-      clock.getElapsedTime();
+    if (
+      !speech?.audioUrl
+    ) {
 
+      return;
 
-    /*
-     * =====================================
-     * EXPRESSÕES FACIAIS
-     * =====================================
-     */
-
-    const currentExpression =
-      EXPRESSIONS[expression] ||
-      EXPRESSIONS.neutral;
+    }
 
 
-    morphMeshes.current.forEach(
-      (object) => {
+    if (
+      audioRef.current
+    ) {
 
-        const dictionary =
-          object.morphTargetDictionary;
+      audioRef.current.pause();
 
-        const influences =
-          object.morphTargetInfluences;
-
-
-        EXPRESSION_TARGETS.forEach(
-          (name) => {
-
-            const index =
-              dictionary[name];
+    }
 
 
-            if (
-              index === undefined
-            ) {
-              return;
-            }
+    mouthCuesRef.current =
+      speech.mouthCues || [];
 
 
-            const target =
-              currentExpression[
-                name
-              ] || 0;
+    const audio =
+      new Audio(
+        speech.audioUrl
+      );
 
 
-            /*
-             * TRANSIÇÃO SUAVE
-             */
+    audio.preload =
+      "auto";
 
-            influences[index] =
-              THREE.MathUtils.lerp(
-                influences[index],
-                target,
-                0.12
-              );
 
-          }
+    audioRef.current =
+      audio;
+
+
+    audio.play().catch(
+      (error) => {
+
+        console.error(
+          "Erro ao reproduzir áudio:",
+          error
         );
 
       }
     );
 
 
-    /*
-     * =====================================
-     * PISCAR NATURAL
-     * =====================================
-     */
+    return () => {
 
-    if (
-      blinkStart.current === null &&
-      time >=
-        nextBlink.current
-    ) {
+      audio.pause();
 
-      blinkStart.current =
-        time;
-
-    }
+    };
 
 
-    let blink = 0;
+  }, [speech]);
 
-
-    if (
-      blinkStart.current !== null
-    ) {
-
-      const elapsed =
-        time -
-        blinkStart.current;
-
-
-      const duration =
-        0.22;
-
-
-      /*
-       * FECHAR
-       */
-
-      if (
-        elapsed <
-        duration / 2
-      ) {
-
-        blink =
-          elapsed /
-          (duration / 2);
-
-      }
-
-
-      /*
-       * ABRIR
-       */
-
-      else if (
-        elapsed <
-        duration
-      ) {
-
-        blink =
-          1 -
-          (
-            elapsed -
-            duration / 2
-          ) /
-          (duration / 2);
-
-      }
-
-
-      /*
-       * TERMINAR
-       */
-
-      else {
-
-        blink = 0;
-
-        blinkStart.current =
-          null;
-
-
-        /*
-         * PRÓXIMO PISCAR
-         * ENTRE 2.5 E 6 SEGUNDOS
-         */
-
-        nextBlink.current =
-          time +
-          2.5 +
-          Math.random() *
-            3.5;
-
-      }
-
-    }
-
-
-    /*
-     * APLICAR BLINK
-     */
-
-    blinkTargets.current.forEach(
-      ({
-        object,
-        leftIndex,
-        rightIndex,
-      }) => {
-
-        if (
-          leftIndex !== undefined
-        ) {
-
-          object
-            .morphTargetInfluences[
-              leftIndex
-            ] = blink;
-
-        }
-
-
-        if (
-          rightIndex !== undefined
-        ) {
-
-          object
-            .morphTargetInfluences[
-              rightIndex
-            ] = blink;
-
-        }
-
-      }
-    );
-
-  });
 
 
   /*
-   * =====================================
-   * RENDERIZAR AVATAR
-   * =====================================
+   * =========================================
+   * LOOP
+   * =========================================
    */
 
+  useFrame(
+    ({ clock }) => {
+
+
+      const time =
+        clock.getElapsedTime();
+
+
+      const currentExpression =
+
+        EXPRESSIONS[
+          expression
+        ]
+
+        ||
+
+        EXPRESSIONS.neutral;
+
+
+
+      /*
+       * =====================================
+       * EXPRESSÕES
+       * =====================================
+       */
+
+      morphMeshes.current.forEach(
+        (object) => {
+
+
+          const dictionary =
+            object.morphTargetDictionary;
+
+
+          const influences =
+            object.morphTargetInfluences;
+
+
+          EXPRESSION_TARGETS.forEach(
+            (name) => {
+
+
+              const index =
+                dictionary[name];
+
+
+              if (
+                index === undefined
+              ) {
+
+                return;
+
+              }
+
+
+              const target =
+
+                currentExpression[
+                  name
+                ]
+
+                || 0;
+
+
+              influences[index] =
+
+                THREE.MathUtils.lerp(
+
+                  influences[index],
+
+                  target,
+
+                  0.12
+
+                );
+
+            }
+          );
+
+        }
+      );
+
+
+
+      /*
+       * =====================================
+       * LIP SYNC RHUBARB
+       * =====================================
+       */
+
+        const audio = audioRef.current;
+
+        let currentViseme = null;
+        let nextViseme = null;
+
+        let currentWeight = 0;
+        let nextWeight = 0;
+
+
+        /*
+        * Só calcular enquanto
+        * o áudio estiver a tocar.
+        */
+
+        if (
+          audio &&
+          !audio.paused &&
+          !audio.ended
+        ) {
+
+          const currentTime =
+            audio.currentTime;
+
+          const cues =
+            mouthCuesRef.current;
+
+
+          /*
+          * Encontrar cue actual
+          */
+
+          const cueIndex =
+            cues.findIndex(
+              (cue) =>
+                currentTime >= cue.start &&
+                currentTime < cue.end
+            );
+
+
+          if (cueIndex !== -1) {
+
+            const cue =
+              cues[cueIndex];
+
+
+            const nextCue =
+              cues[cueIndex + 1];
+
+
+            currentViseme =
+              RHUBARB_TO_VISEME[
+                cue.value
+              ] || null;
+
+
+            /*
+            * Tempo que falta
+            * para terminar este som.
+            */
+
+            const timeToEnd =
+              cue.end - currentTime;
+
+
+            /*
+            * Começar a preparar
+            * o próximo formato da boca
+            * nos últimos 80 ms.
+            */
+
+            const transitionWindow =
+              0.08;
+
+
+            if (
+              nextCue &&
+              timeToEnd <
+                transitionWindow
+            ) {
+
+              nextViseme =
+                RHUBARB_TO_VISEME[
+                  nextCue.value
+                ] || null;
+
+
+              const blend =
+                THREE.MathUtils.clamp(
+                  1 -
+                    timeToEnd /
+                      transitionWindow,
+                  0,
+                  1
+                );
+
+
+              currentWeight =
+                1 - blend;
+
+
+              nextWeight =
+                blend;
+
+            }
+
+            else {
+
+              currentWeight =
+                1;
+
+            }
+
+          }
+
+        }
+
+
+
+        /*
+        * =====================================
+        * APLICAR VISEMES
+        * =====================================
+        */
+
+        visemeMeshes.current.forEach(
+          (object) => {
+
+            const dictionary =
+              object.morphTargetDictionary;
+
+
+            const influences =
+              object.morphTargetInfluences;
+
+
+            VISEMES.forEach(
+              (name) => {
+
+                const index =
+                  dictionary[name];
+
+
+                if (
+                  index === undefined
+                ) {
+
+                  return;
+
+                }
+
+
+                let target =
+                  0;
+
+
+                /*
+                * Viseme actual
+                */
+
+                if (
+                  name ===
+                  currentViseme
+                ) {
+
+                  target +=
+                    currentWeight *
+                    0.9;
+
+                }
+
+
+                /*
+                * Próximo viseme
+                */
+
+                if (
+                  name ===
+                  nextViseme
+                ) {
+
+                  target +=
+                    nextWeight *
+                    0.9;
+
+                }
+
+
+                /*
+                * Transição suave
+                */
+
+                influences[index] =
+
+                  THREE.MathUtils.lerp(
+
+                    influences[index],
+
+                    target,
+
+                    0.45
+
+                  );
+
+              }
+            );
+
+
+            /*
+            * =================================
+            * MOVIMENTO NATURAL DO MAXILAR
+            * =================================
+            */
+
+            const jawIndex =
+              dictionary.jawOpen;
+
+
+            if (
+              jawIndex !== undefined
+            ) {
+
+              let jawTarget =
+                0;
+
+
+              /*
+              * Vogais abertas
+              */
+
+              if (
+                currentViseme === "aa"
+              ) {
+
+                jawTarget =
+                  0.35 *
+                  currentWeight;
+
+              }
+
+
+              else if (
+                currentViseme === "E"
+              ) {
+
+                jawTarget =
+                  0.18 *
+                  currentWeight;
+
+              }
+
+
+              else if (
+                currentViseme === "oh"
+              ) {
+
+                jawTarget =
+                  0.22 *
+                  currentWeight;
+
+              }
+
+
+              else if (
+                currentViseme === "ou"
+              ) {
+
+                jawTarget =
+                  0.12 *
+                  currentWeight;
+
+              }
+
+
+              /*
+              * Considerar também
+              * o próximo som.
+              */
+
+              if (
+                nextViseme === "aa"
+              ) {
+
+                jawTarget +=
+                  0.35 *
+                  nextWeight;
+
+              }
+
+
+              influences[jawIndex] =
+
+                THREE.MathUtils.lerp(
+
+                  influences[jawIndex],
+
+                  jawTarget,
+
+                  0.35
+
+                );
+
+            }
+
+          }
+        );
+
+
+      /*
+       * =====================================
+       * PISCAR
+       * =====================================
+       */
+
+      if (
+
+        blinkStart.current === null
+
+        &&
+
+        time >=
+          nextBlink.current
+
+      ) {
+
+        blinkStart.current =
+          time;
+
+      }
+
+
+      let blink =
+        0;
+
+
+      if (
+        blinkStart.current !== null
+      ) {
+
+
+        const elapsed =
+
+          time -
+
+          blinkStart.current;
+
+
+        const duration =
+          0.22;
+
+
+        if (
+          elapsed <
+          duration / 2
+        ) {
+
+          blink =
+
+            elapsed /
+
+            (
+              duration / 2
+            );
+
+        }
+
+
+        else if (
+          elapsed <
+          duration
+        ) {
+
+          blink =
+
+            1 -
+
+            (
+              elapsed -
+              duration / 2
+            )
+
+            /
+
+            (
+              duration / 2
+            );
+
+        }
+
+
+        else {
+
+          blink = 0;
+
+
+          blinkStart.current =
+            null;
+
+
+          nextBlink.current =
+
+            time
+
+            +
+
+            2.5
+
+            +
+
+            Math.random()
+            * 3.5;
+
+        }
+
+      }
+
+
+
+      blinkTargets.current.forEach(
+
+        ({
+
+          object,
+
+          leftIndex,
+
+          rightIndex,
+
+        }) => {
+
+
+          if (
+            leftIndex !== undefined
+          ) {
+
+            object
+              .morphTargetInfluences[
+                leftIndex
+              ]
+
+              = blink;
+
+          }
+
+
+          if (
+            rightIndex !== undefined
+          ) {
+
+            object
+              .morphTargetInfluences[
+                rightIndex
+              ]
+
+              = blink;
+
+          }
+
+        }
+
+      );
+
+    }
+
+  );
+
+
+
   return (
+
     <primitive
+
       object={scene}
+
       position={[0, 0, 0]}
+
       rotation={[0, 0, 0]}
+
       scale={1}
+
     />
+
   );
 
 }
 
-
-/*
- * PRELOAD
- */
 
 useGLTF.preload(
   "/models/baghdad_idle_v2.glb"
