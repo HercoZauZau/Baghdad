@@ -22,7 +22,7 @@ A versão final deverá ser capaz de:
 * [x] receber comandos por voz;
 * [x] responder através de voz;
 * [ ] possuir personalidade avançada configurável;
-* [ ] apresentar um avatar animado;
+* [x] apresentar um avatar animado;
 * [ ] utilizar ferramentas e serviços externos;
 * [ ] funcionar num dispositivo físico dedicado;
 * [ ] minimizar ao máximo a dependência de serviços cloud.
@@ -79,7 +79,7 @@ Componentes previstos:
 
 ## 🏛️ Arquitectura técnica
 
-<img src="assets/img/baghdad arc v1.2.png" />
+<img src="assets/img/baghdad arc v1.3.png" />
 
 ---
 
