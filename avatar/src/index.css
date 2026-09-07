@@ -126,3 +126,169 @@ body {
   opacity: 0.5;
   cursor: default;
 }
+
+.status {
+  position: absolute;
+
+  top: 20px;
+  left: 20px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 8px 12px;
+
+  background: rgba(0, 0, 0, 0.55);
+
+  color: white;
+
+  border-radius: 8px;
+
+  font-size: 14px;
+
+  z-index: 20;
+}
+
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+
+  border-radius: 50%;
+
+  background: #888;
+}
+
+
+.status-dot.online {
+  background: #35c759;
+}
+
+
+.conversation {
+  position: absolute;
+
+  left: 50%;
+  bottom: 100px;
+
+  transform: translateX(-50%);
+
+  width: min(700px, 80vw);
+
+  text-align: center;
+
+  z-index: 20;
+
+  pointer-events: none;
+}
+
+
+.user-text {
+  margin-bottom: 8px;
+
+  color: rgba(255, 255, 255, 0.7);
+
+  font-size: 14px;
+}
+
+
+.assistant-text {
+  padding: 10px 16px;
+
+  background: rgba(0, 0, 0, 0.55);
+
+  color: white;
+
+  border-radius: 12px;
+
+  font-size: 16px;
+
+  line-height: 1.4;
+}
+
+
+.mic-button {
+  position: absolute;
+
+  left: 50%;
+  bottom: 25px;
+
+  transform: translateX(-50%);
+
+  width: 58px;
+  height: 58px;
+
+  border: none;
+  border-radius: 50%;
+
+  font-size: 25px;
+
+  background: white;
+
+  cursor: pointer;
+
+  z-index: 30;
+
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+
+.mic-button:hover:not(:disabled) {
+  transform:
+    translateX(-50%)
+    scale(1.07);
+}
+
+
+.mic-button:disabled {
+  cursor: default;
+
+  opacity: 0.65;
+}
+
+
+.mic-button.listening {
+  animation:
+    micPulse
+    1s
+    infinite;
+}
+
+
+@keyframes micPulse {
+
+  0% {
+    box-shadow:
+      0 0 0 0
+      rgba(255,255,255,0.5);
+  }
+
+  100% {
+    box-shadow:
+      0 0 0 18px
+      rgba(255,255,255,0);
+  }
+
+}
+
+
+.error-message {
+  position: absolute;
+
+  top: 65px;
+  left: 20px;
+
+  padding: 8px 12px;
+
+  background: rgba(130, 0, 0, 0.8);
+
+  color: white;
+
+  border-radius: 8px;
+
+  z-index: 30;
+}
