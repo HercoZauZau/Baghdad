@@ -1,244 +1,266 @@
-from pathlib import Path
-import base64
-import json
-import subprocess
-import sys
+import os
 import tempfile
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import numpy as np
+import sounddevice as sd
+
+from scipy.io.wavfile import write
+from faster_whisper import WhisperModel
 
 
-app = FastAPI()
+# ============================================================
+# CONFIGURAÇÃO
+# ============================================================
 
+SAMPLE_RATE = 16000
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+CHANNELS = 1
+
+BLOCK_DURATION = 0.1
+
+BLOCK_SIZE = int(
+    SAMPLE_RATE * BLOCK_DURATION
 )
 
 
-# Baghdad/
-ROOT = Path(__file__).resolve().parent.parent
-
-# Baghdad/avatar/
-AVATAR_DIR = Path(__file__).resolve().parent
+# Este valor já estava bem ajustado
+VOICE_THRESHOLD = 500
 
 
-VOICE_MODEL = (
-    ROOT
-    / "voices"
-    / "dii_pt-PT.onnx"
+# Depois de começar a falar,
+# 1.2 segundos de silêncio terminam a gravação.
+SILENCE_SECONDS = 1.2
+
+
+SILENCE_BLOCKS = int(
+    SILENCE_SECONDS
+    / BLOCK_DURATION
 )
 
 
-RHUBARB = (
-    AVATAR_DIR
-    / "tools"
-    / "rhubarb"
-    / "rhubarb"
+# Limite máximo DEPOIS
+# de começar a falar.
+MAX_DURATION = 20
+
+
+MAX_BLOCKS = int(
+    MAX_DURATION
+    / BLOCK_DURATION
 )
 
 
-class SpeakRequest(BaseModel):
-    text: str
+# ============================================================
+# WHISPER
+# ============================================================
+
+model = WhisperModel(
+    "small",
+    device="cpu",
+    compute_type="int8",
+)
 
 
-@app.get("/")
-def root():
-    return {
-        "status": "ok",
-        "voice": VOICE_MODEL.name,
-        "rhubarb": RHUBARB.exists(),
-    }
+# ============================================================
+# OUVIR
+# ============================================================
+
+def ouvir():
+
+    print("\nA ouvir...")
 
 
-@app.post("/speak")
-def speak(request: SpeakRequest):
-
-    texto = request.text.strip()
-
-    if not texto:
-        raise HTTPException(
-            status_code=400,
-            detail="Texto vazio.",
-        )
-
-    if not VOICE_MODEL.exists():
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Modelo Piper não encontrado: "
-                f"{VOICE_MODEL}"
-            ),
-        )
-
-    if not RHUBARB.exists():
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Rhubarb não encontrado: "
-                f"{RHUBARB}"
-            ),
-        )
+    audio_blocks = []
 
 
-# ------------------------------------------------------------------
+    voz_detectada = False
+
+
+    blocos_silencio = 0
+
+
+    blocos_depois_da_voz = 0
+
 
     try:
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-
-            temp_dir = Path(temp_dir)
-
-            audio_path = (
-                temp_dir
-                / "baghdad.wav"
-            )
-
-            lipsync_path = (
-                temp_dir
-                / "lipsync.json"
-            )
-
-            dialog_path = (
-                temp_dir
-                / "dialog.txt"
-            )
+        with sd.InputStream(
+            samplerate=SAMPLE_RATE,
+            channels=CHANNELS,
+            dtype="int16",
+            blocksize=BLOCK_SIZE,
+        ) as stream:
 
 
-            # ---------------------------------
-            # TEXTO PARA AJUDAR O RHUBARB
-            # ---------------------------------
+            while True:
 
-            dialog_path.write_text(
-                texto,
-                encoding="utf-8",
-            )
-
-
-            # ---------------------------------
-            # PIPER
-            # ---------------------------------
-
-            subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "piper",
-
-                    "--model",
-                    str(VOICE_MODEL),
-
-                    "--output_file",
-                    str(audio_path),
-                ],
-                input=texto,
-                text=True,
-                check=True,
-            )
-
-
-            # ---------------------------------
-            # RHUBARB
-            # ---------------------------------
-
-            subprocess.run(
-                [
-                    str(RHUBARB),
-
-                    "-r",
-                    "phonetic",
-
-                    "-f",
-                    "json",
-
-                    "--extendedShapes",
-                    "GHX",
-
-                    "-d",
-                    str(dialog_path),
-
-                    "-o",
-                    str(lipsync_path),
-
-                    str(audio_path),
-                ],
-                check=True,
-            )
-
-
-            # ---------------------------------
-            # LER LIP SYNC
-            # ---------------------------------
-
-            with open(
-                lipsync_path,
-                "r",
-                encoding="utf-8",
-            ) as file:
-
-                lipsync = json.load(
-                    file
+                audio, _ = stream.read(
+                    BLOCK_SIZE
                 )
 
 
-            # ---------------------------------
-            # LER WAV
-            # ---------------------------------
+                audio = audio.copy()
 
-            audio_bytes = (
-                audio_path.read_bytes()
+
+                amplitude = np.mean(
+                    np.abs(
+                        audio.astype(
+                            np.int32
+                        )
+                    )
+                )
+
+
+                # ============================================
+                # AINDA NÃO COMEÇOU A FALAR
+                # ============================================
+
+                if not voz_detectada:
+
+                    if (
+                        amplitude
+                        >= VOICE_THRESHOLD
+                    ):
+
+                        voz_detectada = True
+
+                        audio_blocks.append(
+                            audio
+                        )
+
+                        blocos_depois_da_voz = 1
+
+
+                    # Importante:
+                    # NÃO existe timeout aqui.
+                    # Espera até o utilizador falar.
+
+                    continue
+
+
+                # ============================================
+                # JÁ COMEÇOU A FALAR
+                # ============================================
+
+                audio_blocks.append(
+                    audio
+                )
+
+
+                blocos_depois_da_voz += 1
+
+
+                if (
+                    amplitude
+                    < VOICE_THRESHOLD
+                ):
+
+                    blocos_silencio += 1
+
+                else:
+
+                    blocos_silencio = 0
+
+
+                # --------------------------------------------
+                # Silêncio após a fala
+                # --------------------------------------------
+
+                if (
+                    blocos_silencio
+                    >= SILENCE_BLOCKS
+                ):
+
+                    break
+
+
+                # --------------------------------------------
+                # Protecção contra fala demasiado longa
+                # --------------------------------------------
+
+                if (
+                    blocos_depois_da_voz
+                    >= MAX_BLOCKS
+                ):
+
+                    break
+
+
+    except KeyboardInterrupt:
+
+        print(
+            "\nEscuta interrompida."
+        )
+
+        return ""
+
+
+    # ========================================================
+    # JUNTAR ÁUDIO
+    # ========================================================
+
+    if not audio_blocks:
+
+        return ""
+
+
+    audio_final = np.concatenate(
+        audio_blocks,
+        axis=0,
+    )
+
+
+    # ========================================================
+    # WAV TEMPORÁRIO
+    # ========================================================
+
+    temp = tempfile.NamedTemporaryFile(
+        suffix=".wav",
+        delete=False,
+    )
+
+
+    audio_path = temp.name
+
+    temp.close()
+
+
+    try:
+
+        write(
+            audio_path,
+            SAMPLE_RATE,
+            audio_final,
+        )
+
+
+        # ====================================================
+        # WHISPER
+        # ====================================================
+
+        segments, _ = model.transcribe(
+            audio_path,
+            language="pt",
+            vad_filter=True,
+        )
+
+
+        texto = " ".join(
+            segment.text.strip()
+            for segment in segments
+        ).strip()
+
+
+        return texto
+
+
+    finally:
+
+        try:
+
+            os.remove(
+                audio_path
             )
 
+        except FileNotFoundError:
 
-            audio_base64 = (
-                base64.b64encode(
-                    audio_bytes
-                ).decode("ascii")
-            )
-
-
-            return {
-                "audio": (
-                    "data:audio/wav;base64,"
-                    + audio_base64
-                ),
-
-                "mouthCues": (
-                    lipsync.get(
-                        "mouthCues",
-                        [],
-                    )
-                ),
-
-                "duration": (
-                    lipsync
-                    .get(
-                        "metadata",
-                        {},
-                    )
-                    .get(
-                        "duration",
-                        0,
-                    )
-                ),
-            }
-
-
-    except subprocess.CalledProcessError as error:
-
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Erro ao gerar voz "
-                "ou lip-sync."
-            ),
-        ) from error
+            pass
