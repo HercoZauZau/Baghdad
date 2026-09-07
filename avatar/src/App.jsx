@@ -1,6 +1,8 @@
 import {
   Suspense,
+  useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -13,10 +15,12 @@ import Avatar from "./Avatar";
 import Room from "./Room";
 
 
+// ============================================================
+// CÂMARA FIXA
+// ============================================================
+
 function CameraSetup() {
-
   const { camera } = useThree();
-
 
   useEffect(() => {
 
@@ -26,38 +30,55 @@ function CameraSetup() {
       3.5
     );
 
-
     camera.lookAt(
       0,
       1,
       -0.4
     );
 
-
     camera.updateProjectionMatrix();
 
   }, [camera]);
-
 
   return null;
 }
 
 
+// ============================================================
+// APP
+// ============================================================
 
 function App() {
+
+  const socketRef =
+    useRef(null);
+
+  const reconnectTimerRef =
+    useRef(null);
+
+  const manualCloseRef =
+    useRef(false);
+
+  const listeningRequestRef =
+    useRef(false);
+
+
+  const [
+    connected,
+    setConnected,
+  ] = useState(false);
+
+
+  const [
+    avatarState,
+    setAvatarState,
+  ] = useState("idle");
+
 
   const [
     expression,
     setExpression,
   ] = useState("neutral");
-
-
-  const [
-    text,
-    setText,
-  ] = useState(
-    "Olá. O meu nome é Baghdad. É um prazer falar contigo."
-  );
 
 
   const [
@@ -67,107 +88,526 @@ function App() {
 
 
   const [
-    loading,
-    setLoading,
-  ] = useState(false);
+    userText,
+    setUserText,
+  ] = useState("");
 
 
-
-  async function speak() {
-
-    if (!text.trim()) {
-      return;
-    }
+  const [
+    assistantText,
+    setAssistantText,
+  ] = useState("");
 
 
-    setLoading(true);
+  const [
+    error,
+    setError,
+  ] = useState("");
 
 
-    try {
+  // ==========================================================
+  // WEBSOCKET
+  // ==========================================================
 
-      const response = await fetch(
-        "http://127.0.0.1:8000/speak",
-        {
-          method: "POST",
+  useEffect(() => {
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+    manualCloseRef.current = false;
 
-          body: JSON.stringify({
-            text,
-          }),
-        }
+
+    function connect() {
+
+      if (
+        socketRef.current &&
+        (
+          socketRef.current.readyState === WebSocket.OPEN ||
+          socketRef.current.readyState === WebSocket.CONNECTING
+        )
+      ) {
+        return;
+      }
+
+
+      console.log(
+        "A ligar WebSocket..."
       );
 
 
-      if (!response.ok) {
-
-        const error =
-          await response.json();
-
-        console.error(
-          error
+      const socket =
+        new WebSocket(
+          "ws://127.0.0.1:8000/ws/avatar"
         );
 
-        throw new Error(
-          "Erro ao gerar fala."
+
+      socketRef.current =
+        socket;
+
+
+      // ------------------------------------------------------
+      // OPEN
+      // ------------------------------------------------------
+
+      socket.onopen = () => {
+
+        console.log(
+          "WebSocket ligado."
+        );
+
+
+        setConnected(true);
+
+        setError("");
+
+
+        socket.send(
+          JSON.stringify({
+            type: "avatar_ready",
+          })
+        );
+
+      };
+
+
+      // ------------------------------------------------------
+      // MESSAGE
+      // ------------------------------------------------------
+
+      socket.onmessage = (
+        event
+      ) => {
+
+        let message;
+
+
+        try {
+
+          message =
+            JSON.parse(
+              event.data
+            );
+
+        }
+
+        catch (parseError) {
+
+          console.error(
+            "Mensagem inválida:",
+            event.data,
+            parseError
+          );
+
+          return;
+        }
+
+
+        console.log(
+          "WS:",
+          message
+        );
+
+
+        // ====================================================
+        // STATE
+        // ====================================================
+
+        if (
+          message.type === "state"
+        ) {
+
+          setAvatarState(
+            message.value
+          );
+
+
+          if (
+            message.value === "idle"
+          ) {
+
+            listeningRequestRef.current =
+              false;
+
+          }
+
+
+          return;
+        }
+
+
+        // ====================================================
+        // USER TEXT
+        // ====================================================
+
+        if (
+          message.type === "user_text"
+        ) {
+
+          setUserText(
+            message.text || ""
+          );
+
+          return;
+        }
+
+
+        // ====================================================
+        // RESPONSE
+        // ====================================================
+
+        if (
+          message.type === "response"
+        ) {
+
+          setAssistantText(
+            message.text || ""
+          );
+
+
+          if (
+            message.emotion
+          ) {
+
+            setExpression(
+              message.emotion
+            );
+
+          }
+
+
+          return;
+        }
+
+
+        // ====================================================
+        // SPEECH
+        // ====================================================
+
+        if (
+          message.type === "speech"
+        ) {
+
+          setAvatarState(
+            "speaking"
+          );
+
+
+          if (
+            message.emotion
+          ) {
+
+            setExpression(
+              message.emotion
+            );
+
+          }
+
+
+          setSpeech({
+
+            id:
+              Date.now(),
+
+            audioUrl:
+              message.audio,
+
+            mouthCues:
+              message.mouthCues || [],
+
+            duration:
+              message.duration || 0,
+
+            text:
+              message.text || "",
+
+          });
+
+
+          return;
+        }
+
+
+        // ====================================================
+        // BUSY
+        // ====================================================
+
+        if (
+          message.type === "busy"
+        ) {
+
+          console.log(
+            "Backend ocupado."
+          );
+
+          return;
+        }
+
+
+        // ====================================================
+        // ERROR
+        // ====================================================
+
+        if (
+          message.type === "error"
+        ) {
+
+          listeningRequestRef.current =
+            false;
+
+          setAvatarState(
+            "idle"
+          );
+
+          setError(
+            message.message
+            ||
+            "Erro desconhecido."
+          );
+
+          return;
+        }
+
+      };
+
+
+      // ------------------------------------------------------
+      // ERROR
+      // ------------------------------------------------------
+
+      socket.onerror = (
+        websocketError
+      ) => {
+
+        console.error(
+          "Erro WebSocket:",
+          websocketError
+        );
+
+      };
+
+
+      // ------------------------------------------------------
+      // CLOSE
+      // ------------------------------------------------------
+
+      socket.onclose = () => {
+
+        console.log(
+          "WebSocket desligado."
+        );
+
+
+        setConnected(false);
+
+        listeningRequestRef.current =
+          false;
+
+        socketRef.current =
+          null;
+
+
+        if (
+          !manualCloseRef.current
+        ) {
+
+          reconnectTimerRef.current =
+            setTimeout(
+              connect,
+              2000
+            );
+
+        }
+
+      };
+
+    }
+
+
+    connect();
+
+
+    return () => {
+
+      manualCloseRef.current =
+        true;
+
+
+      if (
+        reconnectTimerRef.current
+      ) {
+
+        clearTimeout(
+          reconnectTimerRef.current
         );
 
       }
 
 
-      const data =
-        await response.json();
+      if (
+        socketRef.current
+      ) {
+
+        socketRef.current.close();
+
+      }
 
 
-      console.log(
-        "Mouth cues:",
-        data.mouthCues
-      );
+      socketRef.current =
+        null;
+
+    };
+
+  }, []);
 
 
-      setSpeech({
-        audioUrl: data.audio,
+  // ==========================================================
+  // COMEÇAR A OUVIR
+  // ==========================================================
 
-        mouthCues:
-          data.mouthCues,
+  function startListening() {
 
-        duration:
-          data.duration,
+    const socket =
+      socketRef.current;
 
-        /*
-         * Força nova reprodução
-         * mesmo se o texto for igual.
-         */
-        id: Date.now(),
-      });
 
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
+      return;
     }
 
-    catch (error) {
 
-      console.error(
-        error
-      );
-
-
-      alert(
-        "Não foi possível gerar a fala."
-      );
-
+    if (
+      avatarState !== "idle"
+    ) {
+      return;
     }
 
-    finally {
 
-      setLoading(false);
-
+    if (
+      listeningRequestRef.current
+    ) {
+      return;
     }
+
+
+    listeningRequestRef.current =
+      true;
+
+
+    setAvatarState(
+      "listening"
+    );
+
+
+    setUserText("");
+
+    setAssistantText("");
+
+    setError("");
+
+
+    const requestId =
+      crypto.randomUUID();
+
+
+    console.log(
+      "Pedido de escuta:",
+      requestId
+    );
+
+
+    socket.send(
+      JSON.stringify({
+        type: "start_listening",
+        requestId,
+      })
+    );
 
   }
 
 
+  // ==========================================================
+  // ÁUDIO TERMINOU
+  // ==========================================================
+
+  const handleSpeechEnd =
+    useCallback(
+      () => {
+
+        /*
+         * MUDA LOCALMENTE DE IMEDIATO.
+         *
+         * Não esperamos pela resposta
+         * do backend.
+         */
+
+        setAvatarState(
+          "idle"
+        );
+
+
+        setExpression(
+          "neutral"
+        );
+
+
+        listeningRequestRef.current =
+          false;
+
+
+        const socket =
+          socketRef.current;
+
+
+        if (
+          socket &&
+          socket.readyState === WebSocket.OPEN
+        ) {
+
+          socket.send(
+            JSON.stringify({
+              type: "speech_ended",
+            })
+          );
+
+        }
+
+      },
+      []
+    );
+
+
+  // ==========================================================
+  // LABEL
+  // ==========================================================
+
+  const stateLabels = {
+
+    idle:
+      "Pronta",
+
+    listening:
+      "A ouvir...",
+
+    thinking:
+      "A pensar...",
+
+    speaking:
+      "A falar...",
+
+  };
+
+
+  const stateLabel =
+    stateLabels[
+      avatarState
+    ]
+    ||
+    avatarState;
+
+
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
 
@@ -198,7 +638,11 @@ function App() {
 
 
         <directionalLight
-          position={[4, 6, 4]}
+          position={[
+            4,
+            6,
+            4
+          ]}
           intensity={1.5}
         />
 
@@ -207,21 +651,38 @@ function App() {
           position={[
             -3.2,
             2.2,
-            -1.5,
+            -1.5
           ]}
           intensity={4}
           distance={5}
         />
 
 
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={null}
+        >
 
           <Room />
 
 
           <Avatar
-            expression={expression}
-            speech={speech}
+
+            expression={
+              expression
+            }
+
+            speech={
+              speech
+            }
+
+            state={
+              avatarState
+            }
+
+            onSpeechEnd={
+              handleSpeechEnd
+            }
+
           />
 
         </Suspense>
@@ -229,101 +690,97 @@ function App() {
       </Canvas>
 
 
+      {/* STATUS */}
 
-      <div className="tts-controls">
+      <div className="status">
 
-        <input
-
-          value={text}
-
-          onChange={(event) =>
-            setText(
-              event.target.value
-            )
+        <span
+          className={
+            connected
+              ? "status-dot online"
+              : "status-dot"
           }
-
-          onKeyDown={(event) => {
-
-            if (
-              event.key === "Enter"
-              &&
-              !loading
-            ) {
-
-              speak();
-
-            }
-
-          }}
-
-          placeholder="Escreve algo para a Baghdad..."
-
         />
 
 
-        <button
-          onClick={speak}
-          disabled={loading}
-        >
-
-          {
-            loading
-              ? "A gerar..."
-              : "Falar"
-          }
-
-        </button>
+        {
+          connected
+            ? stateLabel
+            : "Desligada"
+        }
 
       </div>
 
 
+      {/* CONVERSA */}
 
-      <div className="controls">
+      <div className="conversation">
 
-        <button
-          onClick={() =>
-            setExpression(
-              "neutral"
-            )
-          }
-        >
-          Neutral
-        </button>
+        {
+          userText &&
+          (
+            <div className="user-text">
 
+              {userText}
 
-        <button
-          onClick={() =>
-            setExpression(
-              "happy"
-            )
-          }
-        >
-          Happy
-        </button>
+            </div>
+          )
+        }
 
 
-        <button
-          onClick={() =>
-            setExpression(
-              "surprised"
-            )
-          }
-        >
-          Surprised
-        </button>
+        {
+          assistantText &&
+          (
+            <div className="assistant-text">
 
+              {assistantText}
 
-        <button
-          onClick={() =>
-            setExpression(
-              "thinking"
-            )
-          }
-        >
-          Thinking
-        </button>
+            </div>
+          )
+        }
 
       </div>
+
+
+      {/* MICROFONE */}
+
+      <button
+
+        className={
+          `mic-button ${avatarState}`
+        }
+
+        onClick={
+          startListening
+        }
+
+        disabled={
+          !connected
+          ||
+          avatarState !== "idle"
+          ||
+          listeningRequestRef.current
+        }
+
+        title="Falar com Baghdad"
+
+      >
+
+        🎙️
+
+      </button>
+
+
+      {
+        error &&
+        (
+          <div className="error-message">
+
+            {error}
+
+          </div>
+        )
+      }
 
     </div>
 
